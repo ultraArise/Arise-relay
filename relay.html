@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<title>ARISE Relay</title>
+</head>
+<body>
+<!--
+  ARISE JARVIS Relay
+  ===================
+  Winzige Hilfsseite, die NICHT auf Neocities liegt (z. B. auf GitHub Pages).
+  Neocities blockiert per Content-Security-Policy jeden fetch() zu fremden
+  Domains (nur "self" erlaubt) — iframes von fremden Domains sind aber nicht
+  blockiert. ARISE bindet diese Seite unsichtbar per <iframe> ein und schickt
+  ihr per postMessage die Anfrage (Ziel-URL, Header, Body). Diese Seite macht
+  den echten fetch() zu Anthropic/OpenAI (unterliegt hier keiner
+  Beschränkung) und schickt das Ergebnis per postMessage zurück.
+
+  Der API-Key verlässt dabei nie den Browser des Nutzers in Richtung eines
+  dritten Servers — er geht nur: ARISE-Seite -> dieses iframe (postMessage,
+  bleibt im Browser) -> direkt zu Anthropic/OpenAI.
+
+  SICHERHEIT: Nur Nachrichten von Domains in ALLOWED_ORIGINS werden
+  beantwortet. Trage dort die Domain deiner ARISE-Seite ein.
+-->
+<script>
+  const ALLOWED_ORIGINS = [
+    'https://ultrarise.neocities.org'
+    // Bei Bedarf weitere erlaubte Absender-Domains hier ergänzen:
+    // 'https://deine-andere-domain.example'
+  ];
+
+  window.addEventListener('message', async (event) => {
+    if (!ALLOWED_ORIGINS.includes(event.origin)) return;
+
+    const { requestId, url, method, headers, body } = event.data || {};
+    if (!requestId || !url) return;
+
+    try {
+      const res = await fetch(url, {
+        method: method || 'POST',
+        headers: headers || {},
+        body: body !== undefined ? JSON.stringify(body) : undefined
+      });
+      let data = null;
+      try { data = await res.json(); } catch (e) { data = null; }
+      event.source.postMessage(
+        { requestId, ok: res.ok, status: res.status, data },
+        event.origin
+      );
+    } catch (err) {
+      event.source.postMessage(
+        { requestId, ok: false, status: 0, error: (err && err.message) ? err.message : 'Netzwerkfehler im Relay.' },
+        event.origin
+      );
+    }
+  });
+</script>
+</body>
+</html>
